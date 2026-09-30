@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-inference-from-scratch"
+version = "0.1.0"
+description = "GPT-2 inference from scratch in PyTorch: KV cache, batched decoding and speculative decoding, with benchmarks."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["torch>=2.1"]
+
+[project.optional-dependencies]
+hf = ["transformers>=4.40"]  # only for loading trained GPT-2 weights and the tokenizer
+plots = ["matplotlib>=3.7"]
+dev = ["pytest>=8", "transformers>=4.40", "matplotlib>=3.7"]
+
+[tool.setuptools.packages.find]
+include = ["infer*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
