@@ -53,7 +53,9 @@ def sample(probs: torch.Tensor, generator: torch.Generator | None = None) -> tor
     return ids.reshape(probs.shape[:-1])
 
 
-def next_token(logits: torch.Tensor, params: SamplingParams = GREEDY, generator=None) -> torch.Tensor:
+def next_token(
+    logits: torch.Tensor, params: SamplingParams = GREEDY, generator: torch.Generator | None = None
+) -> torch.Tensor:
     if params.greedy:
         return logits.argmax(-1)
     return sample(to_probs(logits, params), generator)

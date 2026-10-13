@@ -25,9 +25,10 @@ PROMPT = [5, 17, 3, 42, 8, 11]
 
 # --- KV cache -----------------------------------------------------------------
 
+
 def test_cached_logits_match_full_forward():
     m = tiny()
-    ids = torch.tensor([PROMPT + [1, 2, 3, 4]])
+    ids = torch.tensor([[*PROMPT, 1, 2, 3, 4]])
     full = m(ids)
 
     cache = m.new_cache(1, ids.shape[1])
@@ -59,6 +60,7 @@ def test_cache_larger_than_context_rejected():
 
 # --- generation ---------------------------------------------------------------
 
+
 def test_kv_generation_matches_naive():
     m = tiny()
     assert generate(m, PROMPT, 20) == generate_naive(m, PROMPT, 20)
@@ -76,11 +78,12 @@ def test_batch_matches_individual_runs():
     m = tiny()
     prompts = [[1, 2, 3], [9, 8, 7, 6, 5, 4, 3], [42], [10, 20, 30, 40]]
     batched = generate_batch(m, prompts, 12)
-    for p, out in zip(prompts, batched):
+    for p, out in zip(prompts, batched, strict=False):
         assert out == generate(m, p, 12), f"mismatch for prompt {p}"
 
 
 # --- sampling -----------------------------------------------------------------
+
 
 def test_top_k_and_top_p_filtering():
     logits = torch.tensor([4.0, 3.0, 2.0, 1.0, 0.0])
@@ -99,6 +102,7 @@ def test_greedy_probs_are_one_hot():
 
 
 # --- speculative decoding -----------------------------------------------------
+
 
 @pytest.mark.parametrize("k", [1, 3, 5])
 def test_speculative_greedy_matches_target_exactly(k):
@@ -186,6 +190,7 @@ def test_expected_speedup_formula():
 
 
 # --- loading real GPT-2 weights ----------------------------------------------
+
 
 def test_matches_hugging_face_gpt2():
     """Load a (random, offline) Hugging Face GPT-2 into our model; logits must match."""

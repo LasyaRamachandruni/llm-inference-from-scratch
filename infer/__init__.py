@@ -8,8 +8,8 @@ from .speculative import SpecStats, speculative_generate
 
 __all__ = [
     "GPT",
-    "GPTConfig",
     "GREEDY",
+    "GPTConfig",
     "KVCache",
     "SamplingParams",
     "SpecStats",

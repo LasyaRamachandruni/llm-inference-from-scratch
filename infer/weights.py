@@ -7,6 +7,8 @@ weights shaped [in, out], while nn.Linear expects [out, in], so those are transp
 
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 
 from .model import GPT, GPTConfig
@@ -14,7 +16,7 @@ from .model import GPT, GPTConfig
 _TRANSPOSED = ("attn.c_attn.weight", "attn.c_proj.weight", "mlp.c_fc.weight", "mlp.c_proj.weight")
 
 
-def from_hf_model(hf_model) -> GPT:
+def from_hf_model(hf_model: Any) -> GPT:
     c = hf_model.config
     cfg = GPTConfig(
         vocab_size=c.vocab_size,
@@ -56,7 +58,7 @@ def from_pretrained(name: str = "gpt2") -> GPT:
     return from_hf_model(GPT2LMHeadModel.from_pretrained(name))
 
 
-def load_tokenizer(name: str = "gpt2"):
+def load_tokenizer(name: str = "gpt2") -> Any:
     from transformers import AutoTokenizer
 
     return AutoTokenizer.from_pretrained(name)

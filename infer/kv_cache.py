@@ -34,7 +34,7 @@ class KVCache:
         self.max_len = max_len
         self.length = 0
 
-    def update(self, layer: int, k_new: torch.Tensor, v_new: torch.Tensor):
+    def update(self, layer: int, k_new: torch.Tensor, v_new: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Write this step's keys/values for one layer; return all keys/values so far.
 
         Called once per layer during a forward pass. `length` is only advanced

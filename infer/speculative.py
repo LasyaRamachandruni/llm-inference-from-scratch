@@ -48,7 +48,7 @@ class SpecStats:
         return self.generated / self.rounds if self.rounds else 0.0
 
 
-def _pick(probs: torch.Tensor, params: SamplingParams, generator) -> int:
+def _pick(probs: torch.Tensor, params: SamplingParams, generator: torch.Generator | None) -> int:
     return int(probs.argmax()) if params.greedy else int(sample(probs, generator))
 
 
@@ -87,7 +87,7 @@ def speculative_generate(
         base = len(seq)
 
         # 1. Draft k tokens. Feed whatever the draft cache hasn't seen yet first.
-        d_logits = draft(t(seq[d_cache.length:]), d_cache)[0, -1]
+        d_logits = draft(t(seq[d_cache.length :]), d_cache)[0, -1]
         drafts: list[int] = []
         q_probs: list[torch.Tensor] = []
         for i in range(k):
@@ -117,7 +117,7 @@ def speculative_generate(
         if next_tok is None:  # 4. everything accepted: free bonus token
             next_tok = _pick(p_probs[k], params, generator)
 
-        seq += drafts[:n_accepted] + [next_tok]
+        seq += [*drafts[:n_accepted], next_tok]
 
         # Roll back caches to drop rejected drafts.
         t_cache.truncate(len(seq) - 1)

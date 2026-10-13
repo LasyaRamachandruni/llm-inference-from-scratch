@@ -61,7 +61,7 @@ class Attention(nn.Module):
         self.c_attn = nn.Linear(cfg.n_embd, 3 * cfg.n_embd)  # q, k, v in one matmul
         self.c_proj = nn.Linear(cfg.n_embd, cfg.n_embd)
 
-    def forward(self, x, cache: KVCache | None, attn_mask: torch.Tensor | None):
+    def forward(self, x: torch.Tensor, cache: KVCache | None, attn_mask: torch.Tensor | None) -> torch.Tensor:
         B, T, C = x.shape
         q, k, v = self.c_attn(x).split(C, dim=2)
         # [B, T, C] -> [B, n_head, T, head_dim]
@@ -81,7 +81,7 @@ class MLP(nn.Module):
         self.c_fc = nn.Linear(cfg.n_embd, 4 * cfg.n_embd)
         self.c_proj = nn.Linear(4 * cfg.n_embd, cfg.n_embd)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.c_proj(F.gelu(self.c_fc(x), approximate="tanh"))
 
 
@@ -93,7 +93,7 @@ class Block(nn.Module):
         self.ln_2 = nn.LayerNorm(cfg.n_embd, eps=cfg.layer_norm_eps)
         self.mlp = MLP(cfg)
 
-    def forward(self, x, cache, attn_mask):
+    def forward(self, x: torch.Tensor, cache: KVCache | None, attn_mask: torch.Tensor | None) -> torch.Tensor:
         x = x + self.attn(self.ln_1(x), cache, attn_mask)
         return x + self.mlp(self.ln_2(x))
 
@@ -113,7 +113,7 @@ class GPT(nn.Module):
                 nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * cfg.n_layer))
 
     @staticmethod
-    def _init_weights(m):
+    def _init_weights(m: nn.Module) -> None:
         if isinstance(m, nn.Linear):
             nn.init.normal_(m.weight, mean=0.0, std=0.02)
             nn.init.zeros_(m.bias)
@@ -127,9 +127,7 @@ class GPT(nn.Module):
         if max_len > self.cfg.n_positions:
             raise ValueError(f"max_len {max_len} exceeds context window {self.cfg.n_positions}")
         p = next(self.parameters())
-        return KVCache(
-            self.cfg.n_layer, batch, self.cfg.n_head, max_len, self.cfg.head_dim, p.dtype, p.device
-        )
+        return KVCache(self.cfg.n_layer, batch, self.cfg.n_head, max_len, self.cfg.head_dim, p.dtype, p.device)
 
     def forward(
         self,
@@ -169,7 +167,7 @@ class GPT(nn.Module):
         return x @ self.wte.weight.T  # output layer shares weights with the token embedding
 
     @staticmethod
-    def _attention_mask(T: int, past: int, pad_mask, device):
+    def _attention_mask(T: int, past: int, pad_mask: torch.Tensor | None, device: torch.device) -> torch.Tensor | None:
         """Boolean mask [.., T, past+T]; True means 'may attend'."""
         if pad_mask is None and T == 1:
             return None  # a single new token may look at everything before it

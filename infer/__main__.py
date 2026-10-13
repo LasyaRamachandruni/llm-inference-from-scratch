@@ -1,8 +1,8 @@
 """Generate text with real GPT-2 weights and compare the decoding methods.
 
-    python -m infer "The meaning of life is" --mode kv
-    python -m infer "The meaning of life is" --mode speculative --model gpt2-medium --draft distilgpt2
-    python -m infer "Once upon a time" --mode compare
+python -m infer "The meaning of life is" --mode kv
+python -m infer "The meaning of life is" --mode speculative --model gpt2-medium --draft distilgpt2
+python -m infer "Once upon a time" --mode compare
 """
 
 from __future__ import annotations
@@ -13,11 +13,12 @@ import time
 import torch
 
 from .generate import generate, generate_naive
+from .model import GPT
 from .sampling import SamplingParams
 from .speculative import speculative_generate
 
 
-def main(argv=None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("prompt")
     ap.add_argument("--model", default="gpt2", help="gpt2, gpt2-medium, gpt2-large, gpt2-xl, distilgpt2")
@@ -38,7 +39,9 @@ def main(argv=None) -> int:
     params = SamplingParams(args.temperature, args.top_k, args.top_p)
     prompt = tok.encode(args.prompt)
 
-    def run(mode: str):
+    drafts: dict[str, GPT] = {}
+
+    def run(mode: str) -> list[int]:
         gen = torch.Generator().manual_seed(args.seed)
         t0 = time.perf_counter()
         extra = ""
@@ -47,10 +50,14 @@ def main(argv=None) -> int:
         elif mode == "kv":
             out = generate(model, prompt, args.max_new, params, gen)
         else:
-            draft = run.draft = getattr(run, "draft", None) or from_pretrained(args.draft)
+            if "draft" not in drafts:
+                drafts["draft"] = from_pretrained(args.draft)
+            draft = drafts["draft"]
             out, stats = speculative_generate(model, draft, prompt, args.max_new, args.k, params, gen)
-            extra = (f", {stats.acceptance_rate:.0%} of drafts accepted, "
-                     f"{stats.tokens_per_round:.2f} tokens per {args.model} pass")
+            extra = (
+                f", {stats.acceptance_rate:.0%} of drafts accepted, "
+                f"{stats.tokens_per_round:.2f} tokens per {args.model} pass"
+            )
         dt = time.perf_counter() - t0
         print(f"\n[{mode}] {len(out) / dt:.1f} tokens/s{extra}")
         print(args.prompt + tok.decode(out))

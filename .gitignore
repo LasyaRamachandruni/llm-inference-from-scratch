@@ -7,3 +7,9 @@ dist/
 venv/
 .pytest_cache/
 .DS_Store
+
+# test and tool output
+.coverage
+coverage.xml
+.mypy_cache/
+.ruff_cache/

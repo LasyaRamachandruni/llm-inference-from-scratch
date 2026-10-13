@@ -15,7 +15,7 @@ from .model import GPT
 from .sampling import GREEDY, SamplingParams, next_token
 
 
-def _tensor(ids, device) -> torch.Tensor:
+def _tensor(ids: list[int], device: torch.device) -> torch.Tensor:
     return torch.tensor([ids], dtype=torch.long, device=device)
 
 
@@ -34,7 +34,7 @@ def generate_naive(
     for _ in range(max_new_tokens):
         logits = model(ids[:, -window:])[:, -1]
         ids = torch.cat([ids, next_token(logits, params, generator).view(1, 1)], dim=1)
-    return ids[0, len(prompt):].tolist()
+    return ids[0, len(prompt) :].tolist()
 
 
 @torch.inference_mode()
@@ -81,8 +81,8 @@ def generate_batch(
     ids = torch.full((B, L), pad_id, dtype=torch.long, device=device)
     mask = torch.zeros((B, total), dtype=torch.bool, device=device)
     for row, p in enumerate(prompts):
-        ids[row, L - len(p):] = torch.tensor(p, device=device)
-        mask[row, L - len(p):L] = True
+        ids[row, L - len(p) :] = torch.tensor(p, device=device)
+        mask[row, L - len(p) : L] = True
 
     cache = model.new_cache(batch=B, max_len=total)
     logits = model(ids, cache, mask[:, :L])[:, -1]
