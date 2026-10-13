@@ -46,6 +46,7 @@ omit = ["infer/plots.py", "infer/__main__.py"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "BLE", "T20"]
