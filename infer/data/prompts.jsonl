@@ -1,0 +1,60 @@
+{"id": 0, "prompt": "What is the difference between a process and a thread?"}
+{"id": 1, "prompt": "Explain how a hash map handles collisions."}
+{"id": 2, "prompt": "Write a short poem about the first snow of winter."}
+{"id": 3, "prompt": "Summarize the causes of the French Revolution in three sentences."}
+{"id": 4, "prompt": "How do I reverse a linked list in Python?"}
+{"id": 5, "prompt": "What are good habits for writing clear commit messages?"}
+{"id": 6, "prompt": "Give me a recipe for a quick vegetarian dinner with lentils."}
+{"id": 7, "prompt": "Why is the sky blue?"}
+{"id": 8, "prompt": "Explain gradient descent to a high school student."}
+{"id": 9, "prompt": "What should I pack for a three-day hiking trip in the mountains?"}
+{"id": 10, "prompt": "Translate 'Where is the train station?' into Spanish, French and German."}
+{"id": 11, "prompt": "What is the time complexity of quicksort, and when does it degrade?"}
+{"id": 12, "prompt": "Write a polite email asking my manager for a day off next Friday."}
+{"id": 13, "prompt": "Compare SQL and NoSQL databases for a small web application."}
+{"id": 14, "prompt": "How does a transformer language model generate text one token at a time?"}
+{"id": 15, "prompt": "List five ways to reduce memory usage in a pandas data pipeline."}
+{"id": 16, "prompt": "What is the capital of Australia, and why is it not Sydney?"}
+{"id": 17, "prompt": "Describe the water cycle."}
+{"id": 18, "prompt": "Write a function that checks whether a string is a palindrome."}
+{"id": 19, "prompt": "What are the main differences between TCP and UDP?"}
+{"id": 20, "prompt": "Suggest a name for a coffee shop that also sells books."}
+{"id": 21, "prompt": "How do vaccines train the immune system?"}
+{"id": 22, "prompt": "Explain what a KV cache is in LLM inference and why it speeds things up."}
+{"id": 23, "prompt": "Give me three tips for a successful job interview."}
+{"id": 24, "prompt": "What is overfitting, and how can I detect it?"}
+{"id": 25, "prompt": "Write a haiku about a city at night."}
+{"id": 26, "prompt": "How do I center a div horizontally and vertically with CSS?"}
+{"id": 27, "prompt": "What were the main results of the Apollo 11 mission?"}
+{"id": 28, "prompt": "Explain the bias-variance trade-off with an example."}
+{"id": 29, "prompt": "Help me plan a weekly study schedule for learning linear algebra."}
+{"id": 30, "prompt": "What does the 'yield' keyword do in Python?"}
+{"id": 31, "prompt": "Explain the difference between precision and recall."}
+{"id": 32, "prompt": "Write a short story opening about a lighthouse keeper who finds a message in a bottle."}
+{"id": 33, "prompt": "Why do batteries lose capacity as they age?"}
+{"id": 34, "prompt": "How does public-key cryptography work?"}
+{"id": 35, "prompt": "What are the pros and cons of working remotely?"}
+{"id": 36, "prompt": "Describe how a bill becomes a law in a parliamentary system."}
+{"id": 37, "prompt": "Write a SQL query that finds the top three customers by total order value."}
+{"id": 38, "prompt": "What is the difference between weather and climate?"}
+{"id": 39, "prompt": "Explain Docker containers to someone who knows virtual machines."}
+{"id": 40, "prompt": "What is a good way to learn to cook without recipes?"}
+{"id": 41, "prompt": "Give an example of a recursive function and explain its base case."}
+{"id": 42, "prompt": "Why do airplanes fly? Keep it simple."}
+{"id": 43, "prompt": "What should I consider when choosing a laptop for data science?"}
+{"id": 44, "prompt": "Explain what an API rate limit is and how clients should handle it."}
+{"id": 45, "prompt": "Write a limerick about a cat who learns to code."}
+{"id": 46, "prompt": "What is the Pythagorean theorem used for in real life?"}
+{"id": 47, "prompt": "How do I make my resume stand out for an entry-level machine learning role?"}
+{"id": 48, "prompt": "Explain how photosynthesis works."}
+{"id": 49, "prompt": "What is the difference between a list and a tuple in Python?"}
+{"id": 50, "prompt": "I have a meeting with a client who is unhappy about a delayed project. The delay was caused by a supplier, but we also underestimated the work. How should I open the conversation, what should I avoid saying, and what concrete next steps can I offer so the client leaves the meeting with confidence in the new timeline?"}
+{"id": 51, "prompt": "I am building a small web app that lets students in my class share notes. It needs user accounts, file uploads up to 20 MB, and a search box. I know Python and a little JavaScript. Which framework and database would you suggest, how should I store the files, and what are the main security mistakes to avoid?"}
+{"id": 52, "prompt": "My sourdough bread comes out dense and flat even though the starter bubbles well. I feed it once a day, bake at 230 C in a Dutch oven, and let the dough rise for about four hours at room temperature. What could be going wrong and what should I change first?"}
+{"id": 53, "prompt": "Here is a paragraph from my essay: 'Technology has changed the way people communicate in many ways. People use phones a lot. This has good and bad effects on society.' Rewrite it so it is more specific and engaging, and explain the changes you made."}
+{"id": 54, "prompt": "Explain the difference between batch, mini-batch and stochastic gradient descent, including how each affects convergence speed, memory use and the noise in the updates. Use a small numeric example if it helps."}
+{"id": 55, "prompt": "I want to start running but I have never exercised regularly. I can spare thirty minutes, four days a week. Create a gentle eight-week plan that gets me to running five kilometres without stopping, and tell me how to avoid common injuries."}
+{"id": 56, "prompt": "Write a Python class for a bank account with deposit, withdraw and balance methods. Withdrawals that would overdraw the account should raise an error. Include a few example calls."}
+{"id": 57, "prompt": "Our team keeps missing sprint goals. Stand-ups run long, tickets are vague and priorities change mid-sprint. Suggest a few process changes we could try for the next two sprints and how we would know whether they helped."}
+{"id": 58, "prompt": "Describe three historical events that changed how people travel, and explain the long-term effects of each one on cities and trade."}
+{"id": 59, "prompt": "Design a database schema for a library that tracks books, members, loans and reservations. Explain the tables, their keys and how you would find all overdue loans."}

@@ -8,7 +8,8 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 
 SURFACE = "#fcfcfb"
 INK = "#0b0b0b"
@@ -17,7 +18,7 @@ GRID = "#e4e3df"
 SERIES = ["#2a78d6", "#eb6834", "#1baf7a"]  # blue, orange, aqua
 
 
-def _style(ax, title, xlabel, ylabel):
+def _style(ax: Axes, title: str, xlabel: str, ylabel: str) -> None:
     ax.set_facecolor(SURFACE)
     ax.figure.set_facecolor(SURFACE)
     ax.set_title(title, loc="left", fontsize=12, color=INK, pad=20, fontweight="bold")
@@ -32,9 +33,8 @@ def _style(ax, title, xlabel, ylabel):
     ax.tick_params(colors=INK_2, labelsize=9, length=0)
 
 
-def _label_end(ax, x, y, text):
-    ax.annotate(text, (x, y), xytext=(6, 0), textcoords="offset points",
-                va="center", fontsize=9, color=INK)
+def _label_end(ax: Axes, x: float, y: float, text: str) -> None:
+    ax.annotate(text, (x, y), xytext=(6, 0), textcoords="offset points", va="center", fontsize=9, color=INK)
 
 
 def decode_latency(results: dict, path: Path) -> Path:
@@ -61,10 +61,22 @@ def batching(results: dict, path: Path) -> Path:
     y = [r["tok_s"] for r in rows]
     fig, ax = plt.subplots(figsize=(7.5, 4.2))
     bars = ax.bar(labels, y, color=SERIES[0], width=0.6, edgecolor=SURFACE, linewidth=2)
-    for b, v in zip(bars, y):
-        ax.annotate(f"{v:.0f}", (b.get_x() + b.get_width() / 2, v), xytext=(0, 4),
-                    textcoords="offset points", ha="center", fontsize=9, color=INK)
-    _style(ax, "Total throughput when decoding requests together", "Batch size (requests)", "Tokens per second (all requests)")
+    for b, v in zip(bars, y, strict=False):
+        ax.annotate(
+            f"{v:.0f}",
+            (b.get_x() + b.get_width() / 2, v),
+            xytext=(0, 4),
+            textcoords="offset points",
+            ha="center",
+            fontsize=9,
+            color=INK,
+        )
+    _style(
+        ax,
+        "Total throughput when decoding requests together",
+        "Batch size (requests)",
+        "Tokens per second (all requests)",
+    )
     ax.set_ylim(0, max(y) * 1.15)
     fig.tight_layout()
     fig.savefig(path, dpi=160)
@@ -76,21 +88,40 @@ def speculative(results: dict, path: Path) -> Path:
     spec = results["speculative"]
     alphas = spec["alphas"]
     fig, ax = plt.subplots(figsize=(7.5, 4.2))
-    for color, (k, ys) in zip(SERIES, spec["expected"].items()):
+    for color, (k, ys) in zip(SERIES, spec["expected"].items(), strict=False):
         ax.plot(alphas, ys, color=color, linewidth=2, label=f"k = {k} draft tokens")
         _label_end(ax, alphas[-1], ys[-1], f"k={k}: x{ys[-1]:.1f}")
     for row in spec.get("measured", []):
-        ax.plot(row["acceptance_rate"], row["speedup"], marker="o", markersize=8,
-                color=INK, markeredgecolor=SURFACE, markeredgewidth=2, linestyle="none")
+        ax.plot(
+            row["acceptance_rate"],
+            row["speedup"],
+            marker="o",
+            markersize=8,
+            color=INK,
+            markeredgecolor=SURFACE,
+            markeredgewidth=2,
+            linestyle="none",
+        )
         _label_end(ax, row["acceptance_rate"], row["speedup"], f"measured k={row['k']}")
     ax.axhline(1.0, color=INK_2, linewidth=1, linestyle="--")
-    ax.annotate("no speedup", (alphas[0], 1.0), xytext=(0, 4), textcoords="offset points",
-                fontsize=8, color=INK_2)
-    _style(ax, "Speculative decoding: expected speedup", "Share of draft tokens the target accepts",
-           "Speedup over normal decoding")
-    ax.text(0, 1.01, f"{spec['draft']} drafting for {spec['target']}; draft step costs "
-            f"{spec['cost_ratio']:.0%} of a target step",
-            transform=ax.transAxes, fontsize=9, color=INK_2, va="bottom")
+    ax.annotate("no speedup", (alphas[0], 1.0), xytext=(0, 4), textcoords="offset points", fontsize=8, color=INK_2)
+    _style(
+        ax,
+        "Speculative decoding: modelled speedup (formula, not a measurement)"
+        if not spec.get("measured")
+        else "Speculative decoding: modelled curves and measured points",
+        "Share of draft tokens the target accepts",
+        "Speedup over normal decoding",
+    )
+    ax.text(
+        0,
+        1.01,
+        f"{spec['draft']} drafting for {spec['target']}; draft step costs {spec['cost_ratio']:.0%} of a target step",
+        transform=ax.transAxes,
+        fontsize=9,
+        color=INK_2,
+        va="bottom",
+    )
     ax.set_xlim(0, 1.12)
     ax.set_ylim(bottom=0)
     ax.xaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0))
@@ -101,12 +132,12 @@ def speculative(results: dict, path: Path) -> Path:
     return path
 
 
-def make_all(results: dict, out: Path) -> list[Path]:
+def make_all(results: dict, out: Path, prefix: str = "") -> list[Path]:
     out = Path(out)
     return [
-        decode_latency(results, out / "decode_latency.png"),
-        batching(results, out / "batching.png"),
-        speculative(results, out / "speculative_speedup.png"),
+        decode_latency(results, out / f"{prefix}decode_latency.png"),
+        batching(results, out / f"{prefix}batching.png"),
+        speculative(results, out / f"{prefix}speculative_speedup.png"),
     ]
 
 
@@ -114,5 +145,5 @@ if __name__ == "__main__":
     import sys
 
     folder = Path(sys.argv[1] if len(sys.argv) > 1 else "results")
-    for p in make_all(json.loads((folder / "benchmarks.json").read_text()), folder):
-        print(p)
+    for _p in make_all(json.loads((folder / "benchmarks.json").read_text()), folder):
+        pass
