@@ -19,6 +19,12 @@ Configuration (environment variables):
     INFER_MAX_SEQ_LEN       prompt + output tokens per sequence       default 1024
     INFER_MAX_BATCH_TOKENS  tokens per scheduler iteration            default 2048
     INFER_MAX_QUEUE         waiting requests before 503               default 256
+    INFER_DRAIN_SECONDS     on shutdown, time for open requests to finish  default 30
+
+Health endpoints (used as Kubernetes probes):
+    GET /health   liveness: 200 while the engine thread is alive, 500 if it died
+    GET /ready    readiness: 200 once the model is loaded and the engine is running
+    GET /metrics  JSON counters for people; GET /metrics/prometheus for Prometheus
 """
 
 from __future__ import annotations
@@ -36,13 +42,14 @@ from typing import Any
 
 import torch
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..model import GPT, config_for
 from ..prompts import Tokenizer, load_tokenizer
 from ..sampling import SamplingParams
 from .engine import Engine, EngineConfig, Request
+from .prom import ServerMetrics
 
 log = logging.getLogger("infer.server")
 
@@ -100,6 +107,7 @@ class EngineRunner:
         self._thread = threading.Thread(target=self._loop, name="engine", daemon=True)
         self.started = time.time()
         self.errors = 0
+        self.prom = ServerMetrics()
 
     def start(self) -> None:
         self._thread.start()
@@ -109,9 +117,13 @@ class EngineRunner:
         self._wake.set()
         self._thread.join(timeout=10)
 
+    def alive(self) -> bool:
+        return self._thread.is_alive() and not self._stop.is_set()
+
     def submit(self, req: Request) -> None:
         with self._lock:
             if len(self.engine.waiting) >= self.max_queue:
+                self.prom.request_rejected("queue_full")
                 raise OverflowError("queue full")
             self.engine.submit(req)
         self._wake.set()
@@ -126,7 +138,9 @@ class EngineRunner:
                 continue
             try:
                 with self._lock:
-                    self.engine.step()
+                    finished = self.engine.step()
+                for r in finished:
+                    self.prom.request_finished(r.finish_reason or "unknown", r.ttft, r.latency)
             except Exception:  # keep serving; the failing requests are ended below
                 self.errors += 1
                 log.exception("engine step failed; failing the running requests")
@@ -134,6 +148,7 @@ class EngineRunner:
                     for r in self.engine.running:
                         if not r.done:
                             self.engine.fail(r)
+                            self.prom.request_finished("error", r.ttft, r.latency)
                     self.engine.running.clear()
                     self.engine.last_tokens.clear()
                     self.engine.cache.lengths.zero_()
@@ -152,6 +167,21 @@ class EngineRunner:
             "tokens_per_s_since_start": round(st.generated_tokens / up, 2) if up else 0.0,
             "engine_errors": self.errors,
         }
+
+    def prometheus(self, max_slots: int) -> str:
+        e = self.engine
+        gauges = {
+            "infer_queue_depth": ("Requests waiting for a decode slot", float(len(e.waiting))),
+            "infer_requests_running": ("Requests being decoded", float(len(e.running))),
+            "infer_slots": ("Decode slots (largest batch)", float(max_slots)),
+            "infer_up": ("1 while the engine thread is alive", 1.0 if self.alive() else 0.0),
+        }
+        counters = {
+            "infer_generated_tokens_total": ("Tokens generated", float(e.stats.generated_tokens)),
+            "infer_engine_steps_total": ("Scheduler iterations", float(e.stats.steps)),
+            "infer_engine_errors_total": ("Engine steps that raised", float(self.errors)),
+        }
+        return self.prom.render(gauges, counters)
 
 
 class CompletionRequest(BaseModel):
@@ -215,7 +245,7 @@ def _make_request(body: CompletionRequest, loop: asyncio.AbstractEventLoop) -> t
     )
     try:
         state.runner.submit(req)
-    except OverflowError as exc:
+    except OverflowError as exc:  # Kubernetes autoscaling should keep this rare
         raise HTTPException(503, "server busy: request queue is full") from exc
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -267,7 +297,18 @@ async def completions(body: CompletionRequest) -> StreamingResponse | dict[str, 
 @app.get("/health")
 async def health() -> dict[str, Any]:
     s = state.settings
+    if not state.runner.alive():  # liveness probe fails -> Kubernetes restarts the container
+        raise HTTPException(500, "engine thread is not running")
     return {"status": "ok", "model": s.model, "pretrained": s.pretrained, "policy": s.policy}
+
+
+@app.get("/ready")
+async def ready() -> dict[str, str]:
+    # The model loads in `lifespan` before the server accepts connections, so any
+    # answer here means it is loaded; this still fails if the engine has stopped.
+    if not state.runner.alive():
+        raise HTTPException(503, "not ready")
+    return {"status": "ready"}
 
 
 @app.get("/metrics")
@@ -275,10 +316,24 @@ async def metrics() -> dict[str, Any]:
     return state.runner.metrics()
 
 
+@app.get("/metrics/prometheus", response_class=PlainTextResponse)
+async def prometheus() -> PlainTextResponse:
+    text = state.runner.prometheus(state.settings.max_slots)
+    return PlainTextResponse(text, media_type="text/plain; version=0.0.4")
+
+
 def main() -> None:
     import uvicorn
 
-    uvicorn.run(app, host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8000")))
+    # On SIGTERM uvicorn stops accepting connections and waits up to this long for
+    # open requests (including streams) to finish before shutting the engine down.
+    drain = int(os.environ.get("INFER_DRAIN_SECONDS", "30"))
+    uvicorn.run(
+        app,
+        host=os.environ.get("HOST", "127.0.0.1"),
+        port=int(os.environ.get("PORT", "8000")),
+        timeout_graceful_shutdown=drain,
+    )
 
 
 if __name__ == "__main__":

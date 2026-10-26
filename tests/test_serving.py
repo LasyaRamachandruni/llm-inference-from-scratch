@@ -246,3 +246,44 @@ def test_load_test_trace_and_report(monkeypatch: pytest.MonkeyPatch) -> None:
     }
     table = lt.markdown(result)
     assert "| static |" in table and "| continuous |" in table
+
+
+def test_server_probes_and_prometheus_metrics(client: object) -> None:
+    c = client
+    assert c.get("/ready").json() == {"status": "ready"}  # type: ignore[attr-defined]
+    c.post("/v1/completions", json={"prompt": "hello", "max_tokens": 4})  # type: ignore[attr-defined]
+    resp = c.get("/metrics/prometheus")  # type: ignore[attr-defined]
+    assert resp.status_code == 200 and resp.headers["content-type"].startswith("text/plain")
+    text = resp.text
+    for line in (
+        "infer_queue_depth 0.0",
+        "infer_up 1.0",
+        "infer_generated_tokens_total 4.0",
+        'infer_requests_total{finish_reason="length"} 1',
+        'infer_time_to_first_token_seconds_bucket{le="+Inf"} 1',
+        "infer_request_latency_seconds_count 1",
+    ):
+        assert line in text, line
+
+
+def test_prometheus_histogram_buckets_are_cumulative() -> None:
+    from infer.serving.prom import Histogram
+
+    h = Histogram((0.1, 1.0))
+    for v in (0.05, 0.1, 0.5, 3.0):
+        h.observe(v)
+    assert h.lines("x") == [
+        'x_bucket{le="0.1"} 2',
+        'x_bucket{le="1.0"} 3',
+        'x_bucket{le="+Inf"} 4',
+        "x_sum 3.650000",
+        "x_count 4",
+    ]
+
+
+def test_full_queue_is_counted(client: object, monkeypatch: pytest.MonkeyPatch) -> None:
+    import infer.serving.server as server
+
+    monkeypatch.setattr(server.state.runner, "max_queue", 0)
+    assert client.post("/v1/completions", json={"prompt": "x", "max_tokens": 2}).status_code == 503  # type: ignore[attr-defined]
+    assert 'infer_rejected_requests_total{reason="queue_full"} 1' in client.get("/metrics/prometheus").text  # type: ignore[attr-defined]

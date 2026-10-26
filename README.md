@@ -111,11 +111,14 @@ INFER_PRETRAINED=1 python -m infer.serving.server        # gpt2 with trained wei
 curl -N localhost:8000/v1/completions -H 'content-type: application/json' \
      -d '{"prompt": "The history of the printing press", "max_tokens": 64, "stream": true}'
 curl localhost:8000/metrics                               # queue depth, running, tokens/s
+curl localhost:8000/metrics/prometheus                    # the same plus TTFT/latency histograms, for Prometheus
 
 python -m infer.serving.loadtest http --requests 64 --concurrency 16   # load-test a running server
 ```
 
-Configuration is by environment variable: `INFER_MODEL`, `INFER_PRETRAINED`, `INFER_DEVICE`, `INFER_POLICY` (continuous or static), `INFER_MAX_SLOTS`, `INFER_MAX_SEQ_LEN`, `INFER_MAX_BATCH_TOKENS`, `INFER_MAX_QUEUE` (beyond it the server answers 503). Invalid requests get 422. A Dockerfile builds a CPU image of the server.
+Configuration is by environment variable: `INFER_MODEL`, `INFER_PRETRAINED`, `INFER_DEVICE`, `INFER_POLICY` (continuous or static), `INFER_MAX_SLOTS`, `INFER_MAX_SEQ_LEN`, `INFER_MAX_BATCH_TOKENS`, `INFER_MAX_QUEUE` (beyond it the server answers 503), `INFER_DRAIN_SECONDS` (on SIGTERM, how long open requests get to finish). Invalid requests get 422. A Dockerfile builds a CPU image of the server.
+
+For running in Kubernetes, `/health` is the liveness check (fails if the engine thread dies), `/ready` the readiness check, and `/metrics/prometheus` exposes queue depth, running requests, generated tokens and time-to-first-token/latency histograms in Prometheus' text format (no extra dependency). [k8s-llm-serving](https://github.com/LasyaRamachandruni/k8s-llm-serving) deploys this server with Helm, autoscales it on queue depth and load-tests it.
 
 Load-test prompts: 60 chat prompts bundled with the repository by default, or first user turns from [OpenAssistant oasst1](https://huggingface.co/datasets/OpenAssistant/oasst1) (Apache-2.0) with `--source oasst1`. LMSYS-Chat-1M was not used because its license forbids redistribution, and the ShareGPT dumps have no clear license.
 

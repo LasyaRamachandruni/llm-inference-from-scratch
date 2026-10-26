@@ -54,7 +54,8 @@ jobs:
           HF_HUB_OFFLINE: "1"
         run: |
           python -m infer.serving.server &
-          for i in $(seq 1 60); do curl -sf localhost:8000/health && break; sleep 1; done
+          for i in $(seq 1 60); do curl -sf localhost:8000/ready && break; sleep 1; done
+          curl -sf localhost:8000/metrics/prometheus | grep -q infer_queue_depth
           curl -sfN localhost:8000/v1/completions -H 'content-type: application/json' \
             -d '{"prompt": "hello", "max_tokens": 8, "stream": true, "ignore_eos": true}' | tee out.txt
           grep -q '\[DONE\]' out.txt
