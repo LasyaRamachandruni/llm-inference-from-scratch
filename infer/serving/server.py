@@ -138,9 +138,7 @@ class EngineRunner:
                 continue
             try:
                 with self._lock:
-                    finished = self.engine.step()
-                for r in finished:
-                    self.prom.request_finished(r.finish_reason or "unknown", r.ttft, r.latency)
+                    self.engine.step()
             except Exception:  # keep serving; the failing requests are ended below
                 self.errors += 1
                 log.exception("engine step failed; failing the running requests")
@@ -148,7 +146,6 @@ class EngineRunner:
                     for r in self.engine.running:
                         if not r.done:
                             self.engine.fail(r)
-                            self.prom.request_finished("error", r.ttft, r.latency)
                     self.engine.running.clear()
                     self.engine.last_tokens.clear()
                     self.engine.cache.lengths.zero_()
@@ -232,7 +229,9 @@ def _make_request(body: CompletionRequest, loop: asyncio.AbstractEventLoop) -> t
     ids = state.tokenizer.encode(body.prompt)
     queue: asyncio.Queue[tuple[int, bool]] = asyncio.Queue()
 
-    def on_token(_req: Request, tok: int, done: bool) -> None:
+    def on_token(r: Request, tok: int, done: bool) -> None:
+        if done:  # record before the handler can answer, so /metrics is never behind a response
+            state.runner.prom.request_finished(r.finish_reason or "unknown", r.ttft, r.latency)
         loop.call_soon_threadsafe(queue.put_nowait, (tok, done))
 
     req = Request(
