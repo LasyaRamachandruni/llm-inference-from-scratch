@@ -33,6 +33,7 @@ import asyncio
 import json
 import logging
 import os
+import queue
 import threading
 import time
 from collections.abc import AsyncIterator
@@ -96,12 +97,19 @@ def build_model(s: ServerSettings) -> GPT:
 
 
 class EngineRunner:
-    """Owns the engine on one background thread; safe to call submit() from any thread."""
+    """Owns the engine on one background thread; safe to call submit() from any thread.
+
+    Only the engine thread touches the engine. Request handlers put new requests
+    in a thread-safe inbox, which the engine thread moves into its queue between
+    steps. (An earlier version shared a lock with the engine thread, which held it
+    for a whole step and re-took it straight away; a handler waiting for it
+    blocked the event loop for seconds under load, so health checks timed out.)
+    """
 
     def __init__(self, engine: Engine, max_queue: int) -> None:
         self.engine = engine
         self.max_queue = max_queue
-        self._lock = threading.Lock()
+        self._inbox: queue.SimpleQueue[Request] = queue.SimpleQueue()
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._loop, name="engine", daemon=True)
@@ -120,42 +128,51 @@ class EngineRunner:
     def alive(self) -> bool:
         return self._thread.is_alive() and not self._stop.is_set()
 
+    def queue_depth(self) -> int:
+        return len(self.engine.waiting) + self._inbox.qsize()
+
     def submit(self, req: Request) -> None:
-        with self._lock:
-            if len(self.engine.waiting) >= self.max_queue:
-                self.prom.request_rejected("queue_full")
-                raise OverflowError("queue full")
-            self.engine.submit(req)
+        """Never blocks: validates, then hands the request to the engine thread."""
+        if self.queue_depth() >= self.max_queue:
+            self.prom.request_rejected("queue_full")
+            raise OverflowError("queue full")
+        self.engine.validate(req)  # ValueError -> 422, raised here in the handler
+        self._inbox.put(req)
         self._wake.set()
+
+    def _drain_inbox(self) -> None:
+        while True:
+            try:
+                req = self._inbox.get_nowait()
+            except queue.Empty:
+                return
+            self.engine.waiting.append(req)  # already validated
 
     def _loop(self) -> None:
         while not self._stop.is_set():
-            with self._lock:
-                idle = self.engine.idle
-            if idle:
+            self._drain_inbox()
+            if self.engine.idle:
                 self._wake.wait(timeout=0.5)
                 self._wake.clear()
                 continue
             try:
-                with self._lock:
-                    self.engine.step()
+                self.engine.step()
             except Exception:  # keep serving; the failing requests are ended below
                 self.errors += 1
                 log.exception("engine step failed; failing the running requests")
-                with self._lock:
-                    for r in self.engine.running:
-                        if not r.done:
-                            self.engine.fail(r)
-                    self.engine.running.clear()
-                    self.engine.last_tokens.clear()
-                    self.engine.cache.lengths.zero_()
+                for r in self.engine.running:
+                    if not r.done:
+                        self.engine.fail(r)
+                self.engine.running.clear()
+                self.engine.last_tokens.clear()
+                self.engine.cache.lengths.zero_()
 
     def metrics(self) -> dict[str, Any]:
         st = self.engine.stats
         up = time.time() - self.started
         return {
             "policy": self.engine.config.policy,
-            "waiting": len(self.engine.waiting),
+            "waiting": self.queue_depth(),
             "running": len(self.engine.running),
             "completed": st.completed,
             "generated_tokens": st.generated_tokens,
@@ -168,7 +185,7 @@ class EngineRunner:
     def prometheus(self, max_slots: int) -> str:
         e = self.engine
         gauges = {
-            "infer_queue_depth": ("Requests waiting for a decode slot", float(len(e.waiting))),
+            "infer_queue_depth": ("Requests waiting for a decode slot", float(self.queue_depth())),
             "infer_requests_running": ("Requests being decoded", float(len(e.running))),
             "infer_slots": ("Decode slots (largest batch)", float(max_slots)),
             "infer_up": ("1 while the engine thread is alive", 1.0 if self.alive() else 0.0),

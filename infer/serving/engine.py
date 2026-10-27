@@ -154,6 +154,15 @@ class Engine:
     # --- public API ---------------------------------------------------------------------
 
     def submit(self, req: Request) -> Request:
+        self.validate(req)
+        self.waiting.append(req)
+        return req
+
+    def validate(self, req: Request) -> None:
+        """Raise ValueError if the request can never run; also seeds its sampler.
+
+        Only reads the config, so the server can call it from any thread.
+        """
         total = len(req.prompt) + req.max_new_tokens
         if not req.prompt:
             raise ValueError("empty prompt")
@@ -165,8 +174,6 @@ class Engine:
             raise ValueError(f"prompt of {len(req.prompt)} tokens exceeds max_batch_tokens")
         if req.seed is not None and not req.params.greedy:
             req.generator = torch.Generator(device=self.device).manual_seed(req.seed)
-        self.waiting.append(req)
-        return req
 
     @property
     def idle(self) -> bool:

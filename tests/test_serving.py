@@ -287,3 +287,39 @@ def test_full_queue_is_counted(client: object, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(server.state.runner, "max_queue", 0)
     assert client.post("/v1/completions", json={"prompt": "x", "max_tokens": 2}).status_code == 503  # type: ignore[attr-defined]
     assert 'infer_rejected_requests_total{reason="queue_full"} 1' in client.get("/metrics/prometheus").text  # type: ignore[attr-defined]
+
+
+def test_submit_does_not_wait_for_a_slow_engine_step() -> None:
+    # Regression: submit() used to take a lock the engine thread held for a whole
+    # step, which froze the HTTP event loop (and the health checks) under load.
+    import time as _time
+
+    from infer.serving.engine import Engine, EngineConfig, Request
+    from infer.serving.server import EngineRunner
+
+    engine = Engine(tiny(), EngineConfig(max_slots=2, max_seq_len=64))
+    real_step = engine.step
+
+    def slow_step() -> list[Request]:
+        _time.sleep(0.3)
+        return real_step()
+
+    engine.step = slow_step  # type: ignore[method-assign]
+    runner = EngineRunner(engine, max_queue=16)
+    runner.start()
+    try:
+        done = []
+        reqs = [Request([1, 2, 3], 4, on_token=lambda r, t, d: d and done.append(r.id)) for _ in range(6)]
+        worst = 0.0
+        for r in reqs:
+            t0 = _time.perf_counter()
+            runner.submit(r)
+            worst = max(worst, _time.perf_counter() - t0)
+            _time.sleep(0.05)
+        assert worst < 0.05, f"submit blocked for {worst:.3f}s"
+        deadline = _time.time() + 30
+        while len(done) < len(reqs) and _time.time() < deadline:
+            _time.sleep(0.05)
+        assert sorted(done) == sorted(r.id for r in reqs)
+    finally:
+        runner.stop()
